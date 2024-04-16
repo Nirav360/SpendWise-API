@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-const transactionSchema = new Schema({
+const transactionSchema = new mongoose.Schema({
   owner: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
@@ -16,8 +16,12 @@ const transactionSchema = new Schema({
         type: Number,
         required: true,
       },
-      incomeDate: {
+      date: {
         type: Date,
+        required: true,
+      },
+      type: {
+        type: String,
         required: true,
       },
     },
@@ -36,14 +40,18 @@ const transactionSchema = new Schema({
         type: Number,
         required: true,
       },
-      expenseDate: {
+      date: {
         type: Date,
+        required: true,
+      },
+      type: {
+        type: String,
         required: true,
       },
     },
   ],
 });
 
-const Transaction = model("Transaction", transactionSchema);
+const Transaction = mongoose.model("Transaction", transactionSchema);
 
 export default Transaction;
