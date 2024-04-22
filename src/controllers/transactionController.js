@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Transaction from "../models/transactionModel.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import ErrorHandler from "../utils/errorHandler.js";
@@ -118,4 +119,158 @@ const getTransactionsWithBalance = asyncHandler(async (req, res, next) => {
   });
 });
 
-export { createIncome, createExpense, getTransactionsWithBalance };
+const getExpenseByCategory = asyncHandler(async (req, res, next) => {
+  const owner = req.user._id;
+
+  const expenseByCategoryPercentage = await Transaction.aggregate([
+    {
+      $match: {
+        owner: new mongoose.Types.ObjectId(owner),
+      },
+    },
+    {
+      $unwind: "$expense",
+    },
+    {
+      $group: {
+        _id: "$expense.category",
+        totalExpense: {
+          $sum: "$expense.amount",
+        },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        totalExpense: {
+          $sum: "$totalExpense",
+        },
+        categories: {
+          $push: {
+            category: "$_id",
+            totalExpense: "$totalExpense",
+          },
+        },
+      },
+    },
+    {
+      $unwind: "$categories",
+    },
+    {
+      $project: {
+        _id: 0,
+        id: {
+          $concat: ["$categories.category", { $toString: "$totalExpense" }],
+        },
+        label: "$categories.category",
+        value: {
+          $multiply: [
+            {
+              $divide: ["$categories.totalExpense", "$totalExpense"],
+            },
+            100,
+          ],
+        },
+      },
+    },
+  ]);
+
+  if (!expenseByCategoryPercentage?.length) {
+    return next(new ErrorHandler(404, "No transactions"));
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: "Transactions fetched successfully",
+    expenseByCategory: expenseByCategoryPercentage,
+  });
+});
+
+const getTransactionsByMonth = asyncHandler(async (req, res, next) => {
+  const owner = req.user._id;
+
+  const transactionsByMonth = await Transaction.aggregate([
+    {
+      $match: {
+        owner: new mongoose.Types.ObjectId(owner),
+      },
+    },
+    {
+      $project: {
+        transactions: {
+          $concatArrays: ["$income", "$expense"], // Concatenate income and expense arrays
+        },
+      },
+    },
+    {
+      $unwind: "$transactions",
+    },
+    {
+      $project: {
+        category: "$transactions.category",
+        amount: "$transactions.amount",
+        date: "$transactions.date",
+        type: "$transactions.type",
+        month: {
+          $dateToString: {
+            format: "%b",
+            date: "$transactions.date",
+          },
+        }, // Extract the name of the month from the transaction date
+      },
+    },
+    {
+      $group: {
+        _id: { month: "$month", type: "$type" }, // Group by month name and transaction type (income or expense)
+        totalAmount: { $sum: "$amount" }, // Calculate total amount for each group
+      },
+    },
+
+    {
+      $group: {
+        _id: "$_id.month", // Group by month name only
+        income: {
+          $max: {
+            $cond: [{ $eq: ["$_id.type", "income"] }, "$totalAmount", 0],
+          },
+        }, // Calculate total income
+        expense: {
+          $max: {
+            $cond: [{ $eq: ["$_id.type", "expense"] }, "$totalAmount", 0],
+          },
+        }, // Calculate total expense
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        month: "$_id",
+        income: 1,
+        expense: 1,
+      },
+    },
+    {
+      $sort: {
+        month: 1,
+      },
+    },
+  ]);
+
+  if (!transactionsByMonth?.length) {
+    return next(new ErrorHandler(404, "No transactions"));
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: "Transactions fetched successfully",
+    transactionsByMonth,
+  });
+});
+
+export {
+  createIncome,
+  createExpense,
+  getTransactionsWithBalance,
+  getExpenseByCategory,
+  getTransactionsByMonth,
+};
