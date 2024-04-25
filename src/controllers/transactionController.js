@@ -121,6 +121,11 @@ const getTransactionsWithBalance = asyncHandler(async (req, res, next) => {
 
 const getExpenseByCategory = asyncHandler(async (req, res, next) => {
   const owner = req.user._id;
+  const userYear = req.query.year;
+
+  if (!userYear) {
+    return next(new ErrorHandler(400, "Year is required"));
+  }
 
   const expenseByCategoryPercentage = await Transaction.aggregate([
     {
@@ -132,10 +137,24 @@ const getExpenseByCategory = asyncHandler(async (req, res, next) => {
       $unwind: "$expense",
     },
     {
+      $project: {
+        category: "$expense.category",
+        amount: "$expense.amount",
+        date: "$expense.date",
+        type: "$expense.type",
+        year: { $year: "$expense.date" }, // Extract the year from the transaction date
+      },
+    },
+    {
+      $match: {
+        year: parseInt(userYear), // Filter based on the year entered by the user
+      },
+    },
+    {
       $group: {
-        _id: "$expense.category",
+        _id: "$category",
         totalExpense: {
-          $sum: "$expense.amount",
+          $sum: "$amount",
         },
       },
     },
@@ -164,12 +183,14 @@ const getExpenseByCategory = asyncHandler(async (req, res, next) => {
         },
         label: "$categories.category",
         value: {
-          $multiply: [
-            {
-              $divide: ["$categories.totalExpense", "$totalExpense"],
-            },
-            100,
-          ],
+          $round: {
+            $multiply: [
+              {
+                $divide: ["$categories.totalExpense", "$totalExpense"],
+              },
+              100,
+            ],
+          },
         },
       },
     },
@@ -188,6 +209,11 @@ const getExpenseByCategory = asyncHandler(async (req, res, next) => {
 
 const getTransactionsByMonth = asyncHandler(async (req, res, next) => {
   const owner = req.user._id;
+  const userYear = req.query.year;
+
+  if (!userYear) {
+    return next(new ErrorHandler(400, "Year is required"));
+  }
 
   const transactionsByMonth = await Transaction.aggregate([
     {
@@ -203,7 +229,7 @@ const getTransactionsByMonth = asyncHandler(async (req, res, next) => {
       },
     },
     {
-      $unwind: "$transactions",
+      $unwind: "$transactions", // Unwind the transactions array
     },
     {
       $project: {
@@ -211,6 +237,7 @@ const getTransactionsByMonth = asyncHandler(async (req, res, next) => {
         amount: "$transactions.amount",
         date: "$transactions.date",
         type: "$transactions.type",
+        year: { $year: "$transactions.date" }, // Extract the year from the transaction date
         month: {
           $dateToString: {
             format: "%b",
@@ -220,12 +247,16 @@ const getTransactionsByMonth = asyncHandler(async (req, res, next) => {
       },
     },
     {
+      $match: {
+        year: parseInt(userYear), // Filter based on the year entered by the user
+      },
+    },
+    {
       $group: {
         _id: { month: "$month", type: "$type" }, // Group by month name and transaction type (income or expense)
         totalAmount: { $sum: "$amount" }, // Calculate total amount for each group
       },
     },
-
     {
       $group: {
         _id: "$_id.month", // Group by month name only
@@ -250,9 +281,7 @@ const getTransactionsByMonth = asyncHandler(async (req, res, next) => {
       },
     },
     {
-      $sort: {
-        month: 1,
-      },
+      $sort: { month: 1 }, // Sort by month
     },
   ]);
 
