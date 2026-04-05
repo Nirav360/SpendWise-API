@@ -38,10 +38,10 @@ const createIncome = asyncHandler(async (req, res, next) => {
 
 const createExpense = asyncHandler(async (req, res, next) => {
   const owner = req.user._id;
-  const { category, description, amount, date, type } = req.body;
+  const { category, description, amount, modeOfPayment, date, type } = req.body;
 
   if (
-    [category, description, amount, date, type].some((field) => field === "")
+    [category, description, amount, modeOfPayment, date, type].some((field) => field === "")
   ) {
     return next(new ErrorHandler(400, "All fields are required"));
   }
@@ -56,6 +56,7 @@ const createExpense = asyncHandler(async (req, res, next) => {
     category,
     description,
     amount,
+    modeOfPayment,
     date: new Date(date),
     type,
   });

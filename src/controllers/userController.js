@@ -81,12 +81,19 @@ const loginUser = asyncHandler(async (req, res, next) => {
     next
   );
 
-  // Create secure cookie with refresh token
+  // // Create secure cookie with refresh token
+  // res.cookie("jwt", refreshToken, {
+  //   httpOnly: false, //accessible only by web server
+  //   // secure: true, //https
+  //   // sameSite: "None", //cross-site cookie
+  //   maxAge: 7 * 24 * 60 * 60 * 1000, //cookie expiry: set to match rT
+  // });
+
   res.cookie("jwt", refreshToken, {
-    httpOnly: false, //accessible only by web server
-    // secure: true, //https
-    // sameSite: "None", //cross-site cookie
-    maxAge: 7 * 24 * 60 * 60 * 1000, //cookie expiry: set to match rT
+    httpOnly: true,    // Prevent XSS; token is only accessible by the web server
+    secure: true,      // REQUIRED for sameSite: "none"; requires HTTPS
+    sameSite: "none",  // REQUIRED for cross-domain cookie sharing
+    maxAge: 7 * 24 * 60 * 60 * 1000, 
   });
 
   return res.status(200).json({

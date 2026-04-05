@@ -14,7 +14,7 @@ connectDB();
 
 app.use(
   cors({
-    origin: "https://spendwise-frontend-p8do.onrender.com",
+    origin: ["https://spendwise-frontend-p8do.onrender.com", "http://localhost:5173"],
     credentials: true,
     optionsSuccessStatus: 200,
   })
