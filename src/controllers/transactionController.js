@@ -67,10 +67,9 @@ const createExpense = asyncHandler(async (req, res, next) => {
     .json({ success: true, message: "Expense added successfully" });
 });
 
-const getTransactionsWithBalance = asyncHandler(async (req, res, next) => {
+const getBalance = asyncHandler(async(req, res, next)=> {
   const owner = req.user._id;
-
-  const transactionDetails = await Transaction.aggregate([
+  const balanceDetails = await Transaction.aggregate([
     { $match: { $expr: { $eq: ["$owner", { $toObjectId: owner }] } } },
     {
       $addFields: {
@@ -87,10 +86,7 @@ const getTransactionsWithBalance = asyncHandler(async (req, res, next) => {
         totalBalance: {
           $subtract: ["$totalIncome", "$totalExpense"],
         },
-        transactions: {
-          $concatArrays: ["$income", "$expense"],
-        },
-      },
+      }
     },
     {
       $project: {
@@ -98,6 +94,50 @@ const getTransactionsWithBalance = asyncHandler(async (req, res, next) => {
         totalIncome: 1,
         totalExpense: 1,
         totalBalance: 1,
+      }
+    }
+  ])
+
+  return res.status(200).json({
+    success: true,
+    message: "Balance fetched successfully",
+    balanceDetails: balanceDetails[0],
+  });
+})
+
+const getTransactions = asyncHandler(async (req, res, next) => {
+  const owner = req.user._id;
+  const month = Number(req.query.month);
+  const year = Number(req.query.year);
+
+  const transactionDetails = await Transaction.aggregate([
+    { $match: { $expr: { $eq: ["$owner", { $toObjectId: owner }] } } },
+    {
+      $addFields: {
+        transactions: {
+          $concatArrays: ["$income", "$expense"],
+        },
+      }
+    },
+    {
+      $addFields: {
+        transactions: {
+          $filter: {
+            input: "$transactions",
+            as: "item",
+            cond: {
+              $and: [
+                { $eq: [{ $year: "$$item.date" }, year] },
+                { $eq: [{ $month: "$$item.date" }, month] }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
         transactions: {
           $sortArray: {
             input: "$transactions",
@@ -300,7 +340,8 @@ const getTransactionsByMonth = asyncHandler(async (req, res, next) => {
 export {
   createIncome,
   createExpense,
-  getTransactionsWithBalance,
+  getBalance,
+  getTransactions,
   getExpenseByCategory,
   getTransactionsByMonth,
 };
