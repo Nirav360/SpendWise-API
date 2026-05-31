@@ -41,7 +41,9 @@ const createExpense = asyncHandler(async (req, res, next) => {
   const { category, description, amount, modeOfPayment, date, type } = req.body;
 
   if (
-    [category, description, amount, modeOfPayment, date, type].some((field) => field === "")
+    [category, description, amount, modeOfPayment, date, type].some(
+      (field) => field === "",
+    )
   ) {
     return next(new ErrorHandler(400, "All fields are required"));
   }
@@ -67,7 +69,7 @@ const createExpense = asyncHandler(async (req, res, next) => {
     .json({ success: true, message: "Expense added successfully" });
 });
 
-const getBalance = asyncHandler(async(req, res, next)=> {
+const getBalance = asyncHandler(async (req, res, next) => {
   const owner = req.user._id;
   const balanceDetails = await Transaction.aggregate([
     { $match: { $expr: { $eq: ["$owner", { $toObjectId: owner }] } } },
@@ -86,7 +88,7 @@ const getBalance = asyncHandler(async(req, res, next)=> {
         totalBalance: {
           $subtract: ["$totalIncome", "$totalExpense"],
         },
-      }
+      },
     },
     {
       $project: {
@@ -94,16 +96,16 @@ const getBalance = asyncHandler(async(req, res, next)=> {
         totalIncome: 1,
         totalExpense: 1,
         totalBalance: 1,
-      }
-    }
-  ])
+      },
+    },
+  ]);
 
   return res.status(200).json({
     success: true,
     message: "Balance fetched successfully",
     balanceDetails: balanceDetails[0],
   });
-})
+});
 
 const getTransactions = asyncHandler(async (req, res, next) => {
   const owner = req.user._id;
@@ -117,7 +119,7 @@ const getTransactions = asyncHandler(async (req, res, next) => {
         transactions: {
           $concatArrays: ["$income", "$expense"],
         },
-      }
+      },
     },
     {
       $addFields: {
@@ -128,12 +130,12 @@ const getTransactions = asyncHandler(async (req, res, next) => {
             cond: {
               $and: [
                 { $eq: [{ $year: "$$item.date" }, year] },
-                { $eq: [{ $month: "$$item.date" }, month] }
-              ]
-            }
-          }
-        }
-      }
+                { $eq: [{ $month: "$$item.date" }, month] },
+              ],
+            },
+          },
+        },
+      },
     },
     {
       $project: {
@@ -262,67 +264,84 @@ const getTransactionsByMonth = asyncHandler(async (req, res, next) => {
         owner: new mongoose.Types.ObjectId(owner),
       },
     },
+
     {
       $project: {
         transactions: {
-          $concatArrays: ["$income", "$expense"], // Concatenate income and expense arrays
+          $concatArrays: ["$income", "$expense"],
         },
       },
     },
-    {
-      $unwind: "$transactions", // Unwind the transactions array
-    },
+
+    { $unwind: "$transactions" },
+
     {
       $project: {
-        category: "$transactions.category",
         amount: "$transactions.amount",
-        date: "$transactions.date",
         type: "$transactions.type",
-        year: { $year: "$transactions.date" }, // Extract the year from the transaction date
-        month: {
-          $dateToString: {
-            format: "%b",
-            date: "$transactions.date",
-          },
-        }, // Extract the name of the month from the transaction date
+        date: "$transactions.date",
+        year: { $year: "$transactions.date" },
+        month: { $month: "$transactions.date" }, // numeric month (1-12)
       },
     },
+
     {
       $match: {
-        year: parseInt(userYear), // Filter based on the year entered by the user
+        year: parseInt(userYear),
       },
     },
+
     {
       $group: {
-        _id: { month: "$month", type: "$type" }, // Group by month name and transaction type (income or expense)
-        totalAmount: { $sum: "$amount" }, // Calculate total amount for each group
-      },
-    },
-    {
-      $group: {
-        _id: "$_id.month", // Group by month name only
+        _id: "$month",
+
         income: {
-          $max: {
-            $cond: [{ $eq: ["$_id.type", "income"] }, "$totalAmount", 0],
+          $sum: {
+            $cond: [{ $eq: ["$type", "income"] }, "$amount", 0],
           },
-        }, // Calculate total income
+        },
+
         expense: {
-          $max: {
-            $cond: [{ $eq: ["$_id.type", "expense"] }, "$totalAmount", 0],
+          $sum: {
+            $cond: [{ $eq: ["$type", "expense"] }, "$amount", 0],
           },
-        }, // Calculate total expense
+        },
       },
     },
+
+    // format output
     {
       $project: {
         _id: 0,
-        month: "$_id",
+        monthNum: "$_id",
+        month: {
+          $arrayElemAt: [
+            [
+              "",
+              "Jan",
+              "Feb",
+              "Mar",
+              "Apr",
+              "May",
+              "Jun",
+              "Jul",
+              "Aug",
+              "Sep",
+              "Oct",
+              "Nov",
+              "Dec",
+            ],
+            "$_id",
+          ],
+        },
         income: 1,
         expense: 1,
       },
     },
+
+    // correct chronological order
     {
-      $sort: { month: 1 }, // Sort by month
+      $sort: { monthNum: 1 },
     },
   ]);
 
